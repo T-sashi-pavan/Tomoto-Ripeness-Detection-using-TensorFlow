@@ -231,48 +231,54 @@ def process_stream():
     global latest_frame, latest_result, debug_frame
     print("Connecting to ESP32-CAM stream:", ESP32_URL)
 
-    cap = cv2.VideoCapture(ESP32_URL)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    backoff = 0.5
+    max_backoff = 8.0
 
-    if not cap.isOpened():
-        print("❌ Error: Cannot open ESP32-CAM stream.")
-        # Set default frames
-        with frame_lock:
-            latest_frame = default_frame.copy()
-            debug_frame = default_frame.copy()
-        return
-
-    print("✅ Stream connected successfully!")
-    
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("⚠️ Frame not received, retrying...")
-            time.sleep(0.5)
+        cap = cv2.VideoCapture(ESP32_URL)  # Open MJPEG stream
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        if not cap.isOpened():
+            print("❌ Error: Cannot open ESP32-CAM stream. Will retry in 2s...")
+            cap.release()
+            time.sleep(2.0)
             continue
 
-        try:
-            # Process frame with debug info
-            processed_frame, debug_vis, result, color = debug_tomato_detection(frame)
-            
-            # Update results
-            latest_result = {"color": color, "result": result}
-            
-            # CRITICAL: Update frames with proper locking
-            with frame_lock:
-                latest_frame = processed_frame.copy()  # This should show boxes
-                debug_frame = debug_vis.copy()
-            
-            print(f"✅ Frames updated - Detection: {result}")
-            
-        except Exception as e:
-            print(f"❌ Error processing frame: {e}")
-            # Set default frames on error
-            with frame_lock:
-                latest_frame = default_frame.copy()
-                debug_frame = default_frame.copy()
-        
-        time.sleep(0.1)  # Faster processing
+        print("✅ Stream connected successfully!")
+        backoff = 0.5
+
+        while True:
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                print("⚠️ Frame not received, attempting reconnect...")
+                cap.release()
+                # exponential backoff before trying to reopen (protect ESP)
+                time.sleep(backoff)
+                backoff = min(max_backoff, backoff * 2)
+                break  # break inner loop to re-open VideoCapture
+
+            try:
+                # Process frame with your detection function (use the existing function)
+                processed_frame, debug_vis, result, color = debug_tomato_detection(frame)
+
+                # Update results and frames with lock
+                latest_result = {"color": color, "result": result}
+                with frame_lock:
+                    latest_frame = processed_frame.copy()
+                    debug_frame = debug_vis.copy()
+
+                # small sleep to avoid overloading esp32 stream and CPU
+                time.sleep(0.12)  # ~8 FPS processing (tweak between 0.10 - 0.2)
+
+            except Exception as e:
+                print(f"❌ Error processing frame: {e}")
+                with frame_lock:
+                    latest_frame = default_frame.copy()
+                    debug_frame = default_frame.copy()
+                # avoid tight error loop
+                time.sleep(0.5)
+
+        # short delay before trying to reconnect
+        time.sleep(0.5)
 
 @app.route('/')
 def index():
