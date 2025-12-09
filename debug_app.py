@@ -383,9 +383,12 @@ def debug_feed():
     
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-@app.route('/predict', methods=['GET', 'POST'])
+@app.route("/predict", methods=["GET", "POST"])
 def predict():
+    if request.method == "POST":
+        return jsonify({"status": "received"}), 200
     return jsonify(latest_result)
+
 
 if __name__ == '__main__':
     # Start the stream processing in a separate thread
