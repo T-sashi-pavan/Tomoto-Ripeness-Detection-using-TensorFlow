@@ -35,24 +35,23 @@ def enhance_image_for_dim_light(frame):
     return enhanced
 
 def is_tomato_shaped(contour):
-    """EXTREMELY LENIENT tomato shape verification - focuses on tomato structures only"""
+    """VERY LENIENT tomato shape verification"""
     area = cv2.contourArea(contour)
     
-    # Lower minimum area threshold
-    if area < 50:  # Reduced from 100
+    if area < 100:
         return False, "area too small"
     
     # Get bounding rectangle for aspect ratio
     x, y, w, h = cv2.boundingRect(contour)
     
-    # Smaller minimum bounding box
-    if w < 15 or h < 15:  # Reduced from 25
+    # Skip if bounding box is too small
+    if w < 25 or h < 25:
         return False, "bounding box too small"
     
     aspect_ratio = w / h
     
-    # Much more lenient aspect ratio for various tomato shapes
-    if aspect_ratio < 0.3 or aspect_ratio > 3.0:  # Widened from 0.4-2.5
+    # Very lenient aspect ratio
+    if aspect_ratio < 0.4 or aspect_ratio > 2.5:
         return False, f"aspect ratio {aspect_ratio:.2f}"
     
     return True, "tomato shaped"
@@ -73,12 +72,12 @@ def debug_tomato_detection(frame):
     blur = cv2.GaussianBlur(enhanced_frame, (5, 5), 0)
     hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
 
-    # RELAXED HSV ranges for better tomato detection in various lighting
-    lower_red1, upper_red1 = np.array([0, 20, 20]), np.array([10, 255, 255])  # More lenient saturation/value
-    lower_red2, upper_red2 = np.array([170, 20, 20]), np.array([180, 255, 255])
-    lower_orange, upper_orange = np.array([10, 20, 20]), np.array([22, 255, 255])  # Wider range
-    lower_yellow, upper_yellow = np.array([20, 20, 30]), np.array([35, 255, 255])  # Lower thresholds
-    lower_green, upper_green = np.array([35, 15, 15]), np.array([85, 255, 220])  # Wider green range
+    # SIMPLE HSV ranges for real tomato detection
+    lower_red1, upper_red1 = np.array([0, 30, 30]), np.array([10, 255, 255])
+    lower_red2, upper_red2 = np.array([170, 30, 30]), np.array([180, 255, 255])
+    lower_orange, upper_orange = np.array([10, 30, 30]), np.array([20, 255, 255])
+    lower_yellow, upper_yellow = np.array([20, 30, 40]), np.array([35, 255, 255])
+    lower_green, upper_green = np.array([35, 20, 20]), np.array([80, 255, 200])
 
     # Create individual masks
     mask_red = cv2.bitwise_or(
@@ -122,8 +121,8 @@ def debug_tomato_detection(frame):
         area = cv2.contourArea(cnt)
         print(f"Contour {i}: area = {area}")
         
-        # EXTREMELY LENIENT area filtering - allow smaller tomatoes
-        if area < 50 or area > 300000:  # Reduced minimum from 100 to 50
+        # VERY LENIENT area filtering
+        if area < 100 or area > 300000:
             print(f"  Skipped - size out of range")
             continue
         
@@ -153,9 +152,9 @@ def debug_tomato_detection(frame):
         total_color_pixels = red_pixels + orange_pixels + yellow_pixels + green_pixels
         roi_total_pixels = w * h
         
-        # MINIMAL color coverage requirement - very permissive
+        # ULTRA SIMPLE color coverage requirement
         color_coverage = total_color_pixels / roi_total_pixels if roi_total_pixels > 0 else 0
-        if color_coverage < 0.01:  # Only 1% coverage needed! (reduced from 3%)
+        if color_coverage < 0.03:  # Only 3% coverage needed!
             print(f"  Skipped - low color coverage {color_coverage:.2%}")
             continue
         
@@ -176,8 +175,8 @@ def debug_tomato_detection(frame):
         
         print(f"  Dominant color: {dominant_color} ({dominant_ratio:.2%})")
         
-        # MINIMAL classification threshold - detect with very few pixels
-        if dominant_pixels > 20:  # At least 20 pixels of dominant color (reduced from 50)
+        # ULTRA SIMPLE classification - ANY dominant color with ANY ratio
+        if dominant_pixels > 50:  # At least 50 pixels of dominant color
             if dominant_color == "red":
                 result = "🔴 READY TO USE"
                 color = "red"
@@ -318,14 +317,12 @@ def index():
         </script>
         
         <div style="margin-top:20px; text-align:left; max-width:800px; margin-left:auto; margin-right:auto;">
-            <h3>🎯 DEBUGGING MODE - EXTREMELY LENIENT</h3>
+            <h3>🎯 DEBUGGING MODE - ULTRA LENIENT</h3>
             <ul>
-                <li>Only 1% color coverage required (vs 3% before)</li>
-                <li>Only 20 pixels of dominant color needed (vs 50 before)</li>
-                <li>Minimal area: 50 pixels (vs 100 before)</li>
-                <li>Relaxed HSV ranges for better lighting tolerance</li>
-                <li>Extremely lenient shape requirements</li>
-                <li>Boxes ALWAYS drawn when tomato structure detected</li>
+                <li>Only 3% color coverage required</li>
+                <li>Only 50 pixels of dominant color needed</li>
+                <li>Very lenient shape requirements</li>
+                <li>Boxes ALWAYS drawn when detected</li>
             </ul>
             
             <h3>📊 Expected Results:</h3>
@@ -392,7 +389,7 @@ if __name__ == '__main__':
     print("🚀 ULTRA-LENIENT Tomato Detection Server starting...")
     print("📡 Connecting to ESP32-CAM stream...")
     time.sleep(2)  # Give some time for stream to initialize
-    
+
     print("🌐 Flask server running at: http://localhost:5000")
     print("📹 Open your browser and go to: http://localhost:5000")
     print("🔍 Check terminal for detection logs")
